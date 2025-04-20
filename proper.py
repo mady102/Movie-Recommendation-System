@@ -9,8 +9,9 @@ from kivy.uix.spinner import Spinner
 from kivy.core.window import Window
 
 import pandas as pd
-from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neighbors import NearestNeighbors
+import numpy as np
 
 # Set app background color
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
@@ -21,36 +22,29 @@ df.fillna({'overview': '', 'genres': '', 'release_date': '', 'mood': ''}, inplac
 df['year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year.fillna(0).astype(int)
 df['combined_features'] = df['overview'] + " " + df['genres'] + " " + df['mood']
 
+# TF-IDF Vectorization
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df['combined_features'])
 
-# Unique moods from the dataset
+# KNN Model
+knn_model = NearestNeighbors(n_neighbors=10, metric='cosine')
+knn_model.fit(tfidf_matrix)
+
+# Unique moods for spinner
 mood_options = sorted(list(df['mood'].unique()))
 
-def recommend_movies(year, mood, top_n=10):
-    input_vec = vectorizer.transform([mood])
-    similarity_scores = cosine_similarity(input_vec, tfidf_matrix).flatten()
+def recommend_movies_knn(year, mood):
+    mood_text = mood.lower().strip()
+    mood_vec = vectorizer.transform([mood_text])
+    distances, indices = knn_model.kneighbors(mood_vec)
 
-    year_filtered = df[df['year'] == year]
-    if year_filtered.empty:
-        nearby_years = df[df['year'].isin([year - 1, year + 1])]
-        if nearby_years.empty:
-            return ["⚠ No movies found for the given year or nearby."]
-        indices = nearby_years.index
-        scores = similarity_scores[indices]
-        top_indices = scores.argsort()[::-1][:top_n]
-        return [
-            f"{row['title']} ({row['year']})\nGenre: {row['genres']}\nOverview: {row['overview'][:300]}..."
-            for _, row in nearby_years.iloc[top_indices].iterrows()
-        ]
-
-    indices = year_filtered.index
-    scores = similarity_scores[indices]
-    top_indices = scores.argsort()[::-1][:top_n]
-    return [
-        f"{row['title']} ({row['year']})\nGenre: {row['genres']}\nOverview: {row['overview'][:300]}..."
-        for _, row in year_filtered.iloc[top_indices].iterrows()
-    ]
+    filtered = []
+    for idx in indices[0]:
+        movie = df.iloc[idx]
+        if movie['year'] == year or movie['year'] in [year - 1, year + 1]:
+            result = f"{movie['title']} ({movie['year']})\nGenre: {movie['genres']}\nOverview: {movie['overview'][:300]}..."
+            filtered.append(result)
+    return filtered if filtered else ["⚠ No matching movies found."]
 
 class StyledLabel(Label):
     def __init__(self, **kwargs):
@@ -108,7 +102,7 @@ class MovieRecommenderUI(BoxLayout):
             if mood == "Choose a mood":
                 raise ValueError("No mood selected.")
 
-            results = recommend_movies(year, mood)
+            results = recommend_movies_knn(year, mood)
             for movie in results:
                 label = StyledLabel(text=movie, font_size=16)
                 label.text_size = (self.width - 40, None)
