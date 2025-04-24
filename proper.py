@@ -17,7 +17,7 @@ import numpy as np
 Window.clearcolor = (0.1, 0.1, 0.1, 1)
 
 # Load and preprocess dataset
-df = pd.read_csv("tmdb_with_moods.csv")
+df = pd.read_csv("tmdb_with_moods_enhanced_cleaned.csv")
 df.fillna({'overview': '', 'genres': '', 'release_date': '', 'mood': ''}, inplace=True)
 df['year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year.fillna(0).astype(int)
 df['combined_features'] = df['overview'] + " " + df['genres'] + " " + df['mood']

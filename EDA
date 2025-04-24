@@ -1,0 +1,75 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load your dataset
+df = pd.read_csv("tmdb_with_moods_enhanced_cleaned.csv")
+
+# Clean relevant columns
+df_clean = df[['year', 'mood']].dropna()
+df_clean = df_clean[df_clean['year'].apply(lambda x: str(x).isdigit())]
+df_clean['year'] = df_clean['year'].astype(int)
+
+# Remove outliers in 'year' using IQR
+Q1 = df_clean['year'].quantile(0.25)
+Q3 = df_clean['year'].quantile(0.75)
+IQR = Q3 - Q1
+year_filtered = df_clean[(df_clean['year'] >= Q1 - 1.5 * IQR) & (df_clean['year'] <= Q3 + 1.5 * IQR)]
+
+# ----------------- HISTOGRAMS -----------------
+plt.figure(figsize=(14, 6))
+
+plt.subplot(1, 2, 1)
+sns.histplot(data=year_filtered, x='year', bins=30, kde=False)
+plt.title('Histogram: Movie Count by Year')
+plt.xlabel('Year')
+plt.ylabel('Number of Movies')
+
+plt.subplot(1, 2, 2)
+sns.countplot(data=year_filtered, x='mood', order=year_filtered['mood'].value_counts().index)
+plt.title('Histogram: Movie Count by Mood')
+plt.xlabel('Mood')
+plt.ylabel('Number of Movies')
+plt.xticks(rotation=45)
+
+plt.tight_layout()
+plt.show()
+
+# ----------------- BOXPLOTS -----------------
+# Convert mood to numeric frequency
+mood_counts = year_filtered['mood'].value_counts()
+mood_numeric = year_filtered['mood'].map(mood_counts)
+
+plt.figure(figsize=(14, 6))
+
+plt.subplot(1, 2, 1)
+sns.boxplot(x=year_filtered['year'])
+plt.title('Boxplot: Movie Release Years (Outliers Removed)')
+
+plt.subplot(1, 2, 2)
+sns.boxplot(x=mood_numeric)
+plt.title('Boxplot: Movie Mood Frequencies (Numeric Conversion)')
+
+plt.tight_layout()
+plt.show()
+
+# ----------------- DESCRIPTIVE STATS -----------------
+desc_stats = year_filtered['year'].describe()
+print("Descriptive Statistics (Year):\n", desc_stats)
+
+# ----------------- INSIGHT PIE CHART -----------------
+post_2000_count = (year_filtered['year'] > 2000).sum()
+total_mood_labeled = len(year_filtered)
+post_2000_percentage = (post_2000_count / total_mood_labeled) * 100
+
+plt.figure(figsize=(6, 6))
+labels = ['Post-2000', 'Pre-2000']
+sizes = [post_2000_count, total_mood_labeled - post_2000_count]
+colors = ['skyblue', 'lightgray']
+plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+plt.title('Mood-Labeled Movies Released Post-2000')
+plt.axis('equal')
+plt.show()
+
+# Print insight
+print(f"\nInsight: {post_2000_count} mood-labeled movies ({post_2000_percentage:.2f}%) were released after 2000.")
